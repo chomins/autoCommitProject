@@ -1,0 +1,48 @@
+commit:
+  # 커밋 메시지 제목 최대 길이
+  max_subject_length: 72
+  
+  # 커밋 메시지에 변경된 파일 목록 포함 여부
+  include_file_list: true
+  
+  # Conventional Commits 형식 사용 여부
+  conventional_commits: true
+  
+  # 커밋 타입 (Conventional Commits 사용 시)
+  types:
+    - feat
+    - fix
+    - docs
+    - style
+    - refactor
+    - test
+    - chore
+    - perf
+    - ci
+    - build
+
+ai:
+  # AI 모델 (provider에 따라 자동 선택됨)
+  # OpenAI: gpt-4, gpt-4-turbo-preview, gpt-3.5-turbo
+  # Anthropic: claude-3-opus-20240229, claude-3-sonnet-20240229
+  # Gemini: gemini-2.0-flash, gemini-1.5-pro, gemini-1.5-flash
+  model: "gemini-2.0-flash"
+  
+  # Temperature (0.0 ~ 1.0, 낮을수록 일관적/정확)
+  # 낮을수록 더 일관적이고 구체적
+  temperature: 0.1
+  
+  # 최대 토큰 수 (짧은 커밋 메시지용)
+  max_tokens: 80
+
+git:
+  # 자동으로 add할지 여부 (false면 staged된 파일만 커밋)
+  auto_add: false
+  
+  # 제외할 파일 패턴
+  exclude_patterns:
+    - "*.log"
+    - "*.tmp"
+    - ".env"
+    - "__pycache__/"
+
