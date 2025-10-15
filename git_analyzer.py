@@ -126,16 +126,111 @@ class GitAnalyzer:
         return changes
     
     def get_unstaged_changes(self) -> List[FileChange]:
-        """Unstaged 변경사항 가져오기"""
+        """Unstaged 변경사항 가져오기 (git status + git diff 사용)"""
         changes = []
         
-        # Working directory의 변경사항
-        diff = self.repo.index.diff(None)
+        try:
+            # git status --porcelain으로 unstaged 파일 목록 가져오기
+            import subprocess
+            result = subprocess.run(
+                ['git', 'status', '--porcelain'],
+                cwd=self.repo.working_dir,
+                capture_output=True,
+                text=True,
+                encoding='utf-8'
+            )
+            
+            unstaged_files = []
+            for line in result.stdout.splitlines():
+                if len(line) < 4:
+                    continue
+                
+                # 두 번째 문자가 변경 타입 (unstaged)
+                status_code = line[1]
+                file_path = line[3:].strip()
+                
+                # Unstaged 변경사항만 필터링 (M, D, A 등)
+                if status_code in ['M', 'D', 'A'] and status_code != ' ':
+                    unstaged_files.append((status_code, file_path))
+            
+            print(f"🔍 Found {len(unstaged_files)} unstaged files from git status")
+            
+            # 각 파일의 diff 가져오기
+            for status_code, file_path in unstaged_files:
+                try:
+                    if status_code == 'M':
+                        # 수정된 파일: git diff로 읽기
+                        diff_result = subprocess.run(
+                            ['git', 'diff', '--', file_path],
+                            cwd=self.repo.working_dir,
+                            capture_output=True,
+                            text=True,
+                            encoding='utf-8'
+                        )
+                        diff_text = diff_result.stdout
+                        insertions, deletions = self._count_changes(diff_text)
+                        print(f"  ✅ Modified: {file_path} (+{insertions}/-{deletions} lines)")
+                        
+                        changes.append(FileChange(
+                            path=file_path,
+                            change_type='M',
+                            insertions=insertions,
+                            deletions=deletions,
+                            diff=diff_text
+                        ))
+                    
+                    elif status_code == 'D':
+                        # 삭제된 파일
+                        diff_result = subprocess.run(
+                            ['git', 'diff', '--', file_path],
+                            cwd=self.repo.working_dir,
+                            capture_output=True,
+                            text=True,
+                            encoding='utf-8'
+                        )
+                        diff_text = diff_result.stdout
+                        insertions, deletions = self._count_changes(diff_text)
+                        print(f"  ✅ Deleted: {file_path} (+{insertions}/-{deletions} lines)")
+                        
+                        changes.append(FileChange(
+                            path=file_path,
+                            change_type='D',
+                            insertions=insertions,
+                            deletions=deletions,
+                            diff=diff_text
+                        ))
+                    
+                    elif status_code == 'A':
+                        # 새 파일 (untracked): 전체 내용 읽기
+                        import os
+                        full_path = os.path.join(self.repo.working_dir, file_path.replace('/', os.sep))
+                        
+                        if os.path.exists(full_path):
+                            with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+                                content = f.read()
+                            
+                            if content:
+                                diff_lines = [f'+{line}' for line in content.split('\n')]
+                                diff_text = '\n'.join(diff_lines)
+                                insertions = len(content.split('\n'))
+                                print(f"  ✅ New file: {file_path} (+{insertions} lines)")
+                                
+                                changes.append(FileChange(
+                                    path=file_path,
+                                    change_type='A',
+                                    insertions=insertions,
+                                    deletions=0,
+                                    diff=diff_text
+                                ))
+                
+                except Exception as e:
+                    print(f"  ❌ Error processing {file_path}: {e}")
+                    continue
         
-        for diff_item in diff:
-            change = self._parse_diff_item(diff_item)
-            if change:
-                changes.append(change)
+        except Exception as e:
+            print(f"❌ Error in get_unstaged_changes: {e}")
+            import traceback
+            traceback.print_exc()
         
         return changes
     
