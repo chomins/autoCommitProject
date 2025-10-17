@@ -28,6 +28,7 @@ setup(
     install_requires=[
         "openai>=1.0.0",
         "anthropic>=0.25.0",
+        "google-generativeai>=0.3.0",
         "python-dotenv>=1.0.0",
         "gitpython>=3.1.0",
         "pyyaml>=6.0",
@@ -52,10 +53,10 @@ setup(
         "Programming Language :: Python :: 3.11",
     ],
     python_requires=">=3.7",
-    keywords="git commit ai openai anthropic claude automation",
+    keywords="git commit ai openai anthropic claude gemini google automation",
     project_urls={
-        "Bug Reports": "https://github.com/yourusername/autoCommitProject/issues",
-        "Source": "https://github.com/yourusername/autoCommitProject",
+        "Bug Reports": "https://github.com/chomins/autoCommitProject/issues",
+        "Source": "https://github.com/chomins/autoCommitProject",
     },
 )
 
