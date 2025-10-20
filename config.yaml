@@ -49,6 +49,12 @@ git:
 review:
   # 코드 리뷰 기능 설정 (토큰 효율 최적화)
   
+  # 기본적으로 리뷰 활성화 (true면 항상 리뷰, false면 --review 옵션 필요)
+  enabled: true
+  
+  # 기본 리뷰 레벨 (quick/normal/detailed)
+  default_level: quick
+  
   # Temperature (0.0 ~ 1.0, 낮을수록 일관적/정확)
   temperature: 0.2
   

@@ -148,6 +148,12 @@ auto-commit --review-only
 
 ```yaml
 review:
+  # 기본적으로 항상 리뷰 활성화 (NEW!)
+  enabled: true                # true면 --review 옵션 없이도 자동 실행
+  
+  # 기본 리뷰 레벨
+  default_level: quick         # quick/normal/detailed
+  
   # Temperature (리뷰 정확도)
   temperature: 0.2
   
@@ -167,6 +173,23 @@ review:
     - "*.spec.js"
     - "migrations/*"
     - "*.md"
+```
+
+### 기본 동작 설정
+
+**`enabled: true`로 설정하면**:
+```bash
+# 이렇게만 해도 자동으로 리뷰 실행!
+auto-commit
+
+# 리뷰 건너뛰고 싶을 때
+auto-commit --no-review
+```
+
+**`enabled: false`로 설정하면**:
+```bash
+# 명시적으로 옵션을 줘야 리뷰 실행
+auto-commit --review
 ```
 
 ## 💰 토큰 비용 비교

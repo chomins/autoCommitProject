@@ -155,13 +155,19 @@ def main():
     parser.add_argument(
         '--review',
         action='store_true',
-        help='커밋 전에 코드 리뷰 수행 (간단 모드, 토큰 최소화)'
+        help='커밋 전에 코드 리뷰 수행 (config.yaml에서 기본값 설정 가능)'
+    )
+    
+    parser.add_argument(
+        '--no-review',
+        action='store_true',
+        help='코드 리뷰 건너뛰기 (config에서 enabled=true인 경우)'
     )
     
     parser.add_argument(
         '--review-level',
         choices=['quick', 'normal', 'detailed'],
-        default='quick',
+        default=None,
         help='리뷰 상세 수준 (quick: 최소, normal: 중간, detailed: 상세)'
     )
     
@@ -250,16 +256,29 @@ def main():
         # AI 제공자 가져오기 (리뷰 및 커밋 메시지 생성에 사용)
         provider = config.get_ai_provider()
         
-        # 코드 리뷰 수행 (옵션)
+        # 코드 리뷰 수행 여부 결정
+        review_enabled = config.get('review', {}).get('enabled', False)
+        should_review = (
+            args.review or 
+            args.review_detailed or 
+            args.review_only or 
+            (review_enabled and not args.no_review)
+        )
+        
+        # 코드 리뷰 수행
         review_result = None
-        if args.review or args.review_detailed or args.review_only:
+        if should_review:
             console.print("\n[bold cyan]🔍 AI 코드 리뷰 수행 중...[/bold cyan]")
             
             # 리뷰 레벨 결정
             if args.review_detailed:
                 review_level = ReviewLevel.DETAILED
-            else:
+            elif args.review_level:
                 review_level = args.review_level
+            else:
+                # config에서 기본 레벨 가져오기
+                default_level = config.get('review', {}).get('default_level', 'quick')
+                review_level = default_level
             
             with Progress(
                 SpinnerColumn(),

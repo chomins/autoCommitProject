@@ -133,10 +133,12 @@ auto-commit --config custom-config.yaml
 # 상세 정보 출력
 auto-commit --verbose
 
-# ✨ 코드 리뷰 기능
-auto-commit --review                  # 간단 리뷰 (토큰 최소, ~150 토큰)
+# ✨ 코드 리뷰 기능 (config.yaml에서 enabled: true 설정 가능)
+auto-commit                           # enabled: true면 자동으로 리뷰
+auto-commit --no-review               # 리뷰 건너뛰기
+auto-commit --review                  # 강제로 리뷰 실행
 auto-commit --review-detailed         # 상세 리뷰 (~800 토큰)
-auto-commit --review --review-level normal  # 중간 리뷰 (~400 토큰)
+auto-commit --review-level normal     # 중간 리뷰 (~400 토큰)
 auto-commit --review-only             # 리뷰만 수행, 커밋 안함
 ```
 
@@ -234,6 +236,8 @@ auto-commit --review  # 리뷰 후 커밋 계속 진행
 
 ```yaml
 review:
+  enabled: true                     # 기본적으로 항상 리뷰 실행
+  default_level: quick              # 기본 리뷰 레벨
   temperature: 0.2                  # 리뷰 정확도
   max_tokens_quick: 150             # 간단 리뷰 토큰
   max_tokens_normal: 400            # 일반 리뷰 토큰
@@ -247,23 +251,25 @@ review:
     - "migrations/*"
 ```
 
+**팁**: `enabled: true`로 설정하면 매번 `--review` 옵션 없이도 자동으로 리뷰됩니다!
+
 ### 실제 사용 팁
 
 ```bash
-# 일상적인 작업: quick 리뷰
+# config.yaml에서 enabled: true로 설정하면
+# 옵션 없이 사용해도 자동으로 리뷰 실행!
 git add .
-auto-commit --review
+auto-commit                          # 자동으로 리뷰 + 커밋
 
-# 중요한 기능 추가: normal 리뷰
-git add src/payment_service.py
-auto-commit --review --review-level normal
+# 리뷰 건너뛰고 싶을 때만
+auto-commit --no-review              # 리뷰 없이 바로 커밋
 
-# 보안 관련 변경: detailed 리뷰
-git add src/auth/
-auto-commit --review-detailed
+# 리뷰 레벨 변경
+auto-commit --review-level normal    # normal 리뷰로 커밋
+auto-commit --review-detailed        # detailed 리뷰로 커밋
 
 # 리뷰만 먼저 확인
-auto-commit --review-only  # 커밋하지 않고 리뷰만
+auto-commit --review-only            # 커밋하지 않고 리뷰만
 ```
 
 ---
