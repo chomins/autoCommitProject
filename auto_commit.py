@@ -23,6 +23,7 @@ except ImportError:
 from git_analyzer import GitAnalyzer, GitChanges
 from commit_message_generator import CommitMessageGenerator
 from config_manager import ConfigManager
+from code_reviewer import CodeReviewer, ReviewLevel
 
 
 console = Console()
@@ -80,6 +81,19 @@ def print_commit_message(message: str):
     )
 
 
+def print_code_review(review: str, token_estimate: int):
+    """코드 리뷰 결과 출력"""
+    console.print(
+        Panel(
+            review,
+            title="🔍 AI 코드 리뷰",
+            border_style="cyan",
+            padding=(1, 2)
+        )
+    )
+    console.print(f"[dim]💡 예상 토큰 사용: ~{token_estimate} tokens[/dim]\n")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="AI 기반 자동 커밋 도구",
@@ -91,6 +105,8 @@ def main():
   python auto_commit.py --dry-run          # 커밋 메시지만 생성
   python auto_commit.py --auto-yes         # 확인 없이 자동 커밋
   python auto_commit.py --files src/*.py   # 특정 파일만 커밋
+  python auto_commit.py --review           # 코드 리뷰 포함 (간단)
+  python auto_commit.py --review-detailed  # 코드 리뷰 포함 (상세)
         """
     )
     
@@ -134,6 +150,31 @@ def main():
         '--verbose',
         action='store_true',
         help='상세 정보 출력'
+    )
+    
+    parser.add_argument(
+        '--review',
+        action='store_true',
+        help='커밋 전에 코드 리뷰 수행 (간단 모드, 토큰 최소화)'
+    )
+    
+    parser.add_argument(
+        '--review-level',
+        choices=['quick', 'normal', 'detailed'],
+        default='quick',
+        help='리뷰 상세 수준 (quick: 최소, normal: 중간, detailed: 상세)'
+    )
+    
+    parser.add_argument(
+        '--review-detailed',
+        action='store_true',
+        help='상세 코드 리뷰 수행 (--review --review-level detailed와 동일)'
+    )
+    
+    parser.add_argument(
+        '--review-only',
+        action='store_true',
+        help='리뷰만 수행하고 커밋하지 않음'
     )
     
     args = parser.parse_args()
@@ -206,10 +247,62 @@ def main():
             console.print("[yellow]커밋할 파일이 없습니다.[/yellow]")
             sys.exit(0)
         
+        # AI 제공자 가져오기 (리뷰 및 커밋 메시지 생성에 사용)
+        provider = config.get_ai_provider()
+        
+        # 코드 리뷰 수행 (옵션)
+        review_result = None
+        if args.review or args.review_detailed or args.review_only:
+            console.print("\n[bold cyan]🔍 AI 코드 리뷰 수행 중...[/bold cyan]")
+            
+            # 리뷰 레벨 결정
+            if args.review_detailed:
+                review_level = ReviewLevel.DETAILED
+            else:
+                review_level = args.review_level
+            
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console
+            ) as progress:
+                task = progress.add_task(f"코드 분석 중 ({review_level} 모드)...", total=None)
+                
+                try:
+                    reviewer = CodeReviewer(
+                        provider=provider,
+                        api_key=config.get_api_key(provider)
+                    )
+                    
+                    review_result = reviewer.review(
+                        files_to_commit,
+                        config.to_dict(),
+                        level=review_level
+                    )
+                    
+                    progress.update(task, completed=True)
+                except Exception as e:
+                    console.print(f"\n[bold yellow]⚠️  코드 리뷰 실패: {e}[/bold yellow]")
+                    if not args.review_only:
+                        console.print("[yellow]리뷰 없이 계속 진행합니다...[/yellow]")
+                    else:
+                        sys.exit(1)
+            
+            # 리뷰 결과 출력
+            if review_result:
+                console.print()
+                print_code_review(
+                    review_result['review'],
+                    review_result['token_estimate']
+                )
+            
+            # 리뷰만 수행하는 모드
+            if args.review_only:
+                console.print("[cyan]리뷰만 수행했습니다. 커밋하지 않습니다.[/cyan]")
+                sys.exit(0)
+        
         # AI 커밋 메시지 생성
         console.print("\n[bold blue]🤖 AI 커밋 메시지 생성 중...[/bold blue]")
-        
-        provider = config.get_ai_provider()
         
         with Progress(
             SpinnerColumn(),

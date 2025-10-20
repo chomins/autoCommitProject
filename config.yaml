@@ -46,3 +46,26 @@ git:
     - ".env"
     - "__pycache__/"
 
+review:
+  # 코드 리뷰 기능 설정 (토큰 효율 최적화)
+  
+  # Temperature (0.0 ~ 1.0, 낮을수록 일관적/정확)
+  temperature: 0.2
+  
+  # 리뷰 레벨별 최대 토큰 수
+  max_tokens_quick: 150      # 간단 리뷰 (버그, 심각한 문제만)
+  max_tokens_normal: 400     # 일반 리뷰 (로직, 잠재적 이슈)
+  max_tokens_detailed: 800   # 상세 리뷰 (아키텍처, 성능, 보안)
+  
+  # 자동 리뷰 레벨 조절
+  auto_adjust_level: true    # 변경 크기에 따라 자동으로 레벨 조절
+  
+  # 리뷰에서 제외할 파일 패턴
+  exclude_patterns:
+    - "*_test.py"
+    - "test_*.py"
+    - "*.spec.ts"
+    - "*.spec.js"
+    - "migrations/*"
+    - "*.md"
+
