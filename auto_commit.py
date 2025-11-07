@@ -230,14 +230,12 @@ def main():
             
             if auto_add:
                 console.print("\n[yellow]⚠️  Unstaged 파일을 자동으로 staging합니다.[/yellow]")
-                files_to_add = [f.path for f in changes.unstaged_files]
-                analyzer.stage_files(files_to_add)
+                analyzer.stage_file_changes(changes.unstaged_files)
             else:
                 if not args.auto_yes:
                     add_files = Confirm.ask("\nUnstaged 파일을 staging하시겠습니까?")
                     if add_files:
-                        files_to_add = [f.path for f in changes.unstaged_files]
-                        analyzer.stage_files(files_to_add)
+                        analyzer.stage_file_changes(changes.unstaged_files)
                         console.print("[green]✅ 파일이 staging되었습니다.[/green]")
                     else:
                         console.print("[yellow]Staged된 파일만 커밋합니다.[/yellow]")

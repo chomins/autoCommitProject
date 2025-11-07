@@ -125,33 +125,61 @@ class GitAnalyzer:
         
         return changes
     
+    def _parse_file_path(self, path_str: str) -> str:
+        """파일 경로 파싱 및 정규화 (따옴표 제거, 이스케이프 처리)"""
+        if not path_str:
+            return path_str
+        
+        # 경로에서 앞뒤 공백 제거
+        path_str = path_str.strip()
+        
+        # 따옴표로 감싸진 경우 제거 (중첩된 따옴표도 처리)
+        while ((path_str.startswith('"') and path_str.endswith('"')) or 
+               (path_str.startswith("'") and path_str.endswith("'"))):
+            path_str = path_str[1:-1].strip()
+        
+        # -z 옵션을 사용하면 경로가 올바르게 인코딩되어야 하므로
+        # 추가적인 디코딩은 필요하지 않음
+        # 단, 혹시 모를 이스케이프 시퀀스가 있다면 처리
+        
+        # 백슬래시가 연속으로 있는 경우 처리 (\\ -> \)
+        # 하지만 일반적인 경로에는 필요 없음
+        
+        return path_str
+    
     def get_unstaged_changes(self) -> List[FileChange]:
         """Unstaged 변경사항 가져오기 (git status + git diff 사용)"""
         changes = []
         
         try:
-            # git status --porcelain으로 unstaged 파일 목록 가져오기
+            # git status --porcelain -z로 null-separated 경로 가져오기 (특수문자 안전 처리)
             import subprocess
             result = subprocess.run(
-                ['git', 'status', '--porcelain'],
+                ['git', 'status', '--porcelain', '-z'],
                 cwd=self.repo.working_dir,
                 capture_output=True,
-                text=True,
-                encoding='utf-8'
+                text=False  # 바이너리 모드로 받아서 null 문자 처리
             )
             
+            # null-separated 데이터 파싱
+            # 형식: XY PATH\0 (XY는 상태 코드 2자리, PATH는 파일 경로, \0으로 구분)
+            output = result.stdout.decode('utf-8', errors='replace')
             unstaged_files = []
-            for line in result.stdout.splitlines():
-                if len(line) < 4:
-                    continue
-                
-                # 두 번째 문자가 변경 타입 (unstaged)
-                status_code = line[1]
-                file_path = line[3:].strip()
-                
-                # Unstaged 변경사항만 필터링 (M, D, A 등)
-                if status_code in ['M', 'D', 'A'] and status_code != ' ':
-                    unstaged_files.append((status_code, file_path))
+            
+            # null 문자로 분리 (각 항목은 "XY PATH" 형식)
+            entries = [e for e in output.split('\0') if e.strip()]
+            for entry in entries:
+                if len(entry) >= 3:
+                    # 처음 2자리는 상태 코드 (첫 번째: staged, 두 번째: unstaged)
+                    status_code = entry[1] if len(entry) > 1 else ' '
+                    # 나머지는 파일 경로 (공백 하나 건너뛰고)
+                    file_path = entry[3:].strip() if len(entry) > 3 else ''
+                    
+                    # Unstaged 변경사항만 필터링 (M, D, A 등)
+                    if file_path and status_code in ['M', 'D', 'A'] and status_code != ' ':
+                        # 경로 정규화
+                        file_path = self._parse_file_path(file_path)
+                        unstaged_files.append((status_code, file_path))
             
             print(f"🔍 Found {len(unstaged_files)} unstaged files from git status")
             
@@ -383,8 +411,65 @@ class GitAnalyzer:
         )
     
     def stage_files(self, file_paths: List[str]) -> None:
-        """파일들을 staging area에 추가"""
-        self.repo.index.add(file_paths)
+        """파일들을 staging area에 추가 (경로 리스트만 받음)"""
+        # 경로 정규화 (혹시 모를 이스케이프나 따옴표 제거)
+        normalized_paths = []
+        for path in file_paths:
+            # 경로 정규화
+            normalized = self._parse_file_path(path)
+            # 빈 경로는 제외
+            if normalized:
+                normalized_paths.append(normalized)
+        
+        if not normalized_paths:
+            return
+        
+        try:
+            self.repo.index.add(normalized_paths)
+        except Exception as e:
+            # 더 자세한 오류 메시지 제공
+            import traceback
+            error_msg = f"파일 staging 중 오류 발생: {e}\n"
+            error_msg += f"시도한 경로들: {normalized_paths}\n"
+            error_msg += f"원본 경로들: {file_paths}\n"
+            traceback.print_exc()
+            raise RuntimeError(error_msg) from e
+    
+    def stage_file_changes(self, file_changes: List[FileChange]) -> None:
+        """FileChange 객체 리스트를 staging (타입에 따라 적절히 처리)"""
+        files_to_add = []
+        files_to_remove = []
+        
+        for change in file_changes:
+            # 경로 정규화
+            normalized_path = self._parse_file_path(change.path)
+            if not normalized_path:
+                continue
+            
+            if change.change_type == 'D':
+                # 삭제된 파일은 git rm 사용
+                files_to_remove.append(normalized_path)
+            else:
+                # 추가/수정된 파일은 git add 사용
+                files_to_add.append(normalized_path)
+        
+        try:
+            # 삭제된 파일 처리
+            if files_to_remove:
+                # GitPython의 remove 메서드 사용
+                self.repo.index.remove(files_to_remove, working_tree=False)
+            
+            # 추가/수정된 파일 처리
+            if files_to_add:
+                self.repo.index.add(files_to_add)
+        except Exception as e:
+            # 더 자세한 오류 메시지 제공
+            import traceback
+            error_msg = f"파일 staging 중 오류 발생: {e}\n"
+            error_msg += f"추가할 파일들: {files_to_add}\n"
+            error_msg += f"삭제할 파일들: {files_to_remove}\n"
+            traceback.print_exc()
+            raise RuntimeError(error_msg) from e
     
     def stage_all(self) -> None:
         """모든 변경사항을 staging"""
